@@ -19,6 +19,7 @@ class LookupChannel(object):
     
     model = None
     min_length = 1
+    extra_filter = None
     
     def get_query(self,q,request):
         """ return a query set searching for the query string q 
@@ -26,7 +27,10 @@ class LookupChannel(object):
             in the LookupChannel class definition
         """
         kwargs = { "%s__icontains" % self.search_field : q }
-        return self.model.objects.filter(**kwargs).order_by(self.search_field)
+        qs = self.model.objects.filter(**kwargs)
+        if self.extra_filter:
+            qs = qs.filter(self.extra_filter)
+        return qs.order_by(self.search_field)
 
     def get_result(self,obj):
         """ The text result of autocompleting the entered query """
@@ -171,14 +175,20 @@ def make_ajax_field(model,model_fieldname,channel,show_help_text = False,**kwarg
 
 ####################  private  ##################################################
 
+autoconfigure_channels = {}
+
 def get_lookup(channel):
+    global autoconfigure_channels
     """ find the lookup class for the named channel.  this is used internally """
     try:
         lookup_label = settings.AJAX_LOOKUP_CHANNELS[channel]
     except AttributeError:
         raise ImproperlyConfigured("settings.AJAX_LOOKUP_CHANNELS is not configured")
     except KeyError:
-        raise ImproperlyConfigured("settings.AJAX_LOOKUP_CHANNELS not configured correctly for %r" % channel)
+        try:
+            return autoconfigure_channels[channel]
+        except KeyError:
+            raise ImproperlyConfigured("settings.AJAX_LOOKUP_CHANNELS not configured correctly for %r" % channel)
 
     if isinstance(lookup_label,dict):
         # 'channel' : dict(model='app.model', search_field='title' )
@@ -207,7 +217,7 @@ def get_lookup(channel):
         return lookup_class()
 
 
-def make_channel(app_model,arg_search_field):
+def make_channel(app_model,arg_search_field, arg_extra_filter=None):
     """ used in get_lookup
             app_model :   app_name.model_name
             search_field :  the field to search against and to display in search results 
@@ -220,7 +230,36 @@ def make_channel(app_model,arg_search_field):
         
         model = themodel
         search_field = arg_search_field
+        extra_filter = arg_extra_filter
         
     return MadeLookupChannel()
+
+import imp
+from django.conf import settings
+from importlib import import_module
+
+def ajax_select_autodiscover():
+    for app in settings.INSTALLED_APPS:
+        print app
+        try:
+            app_path = import_module(app).__path__
+        except AttributeError:
+            continue
+
+        try:
+            imp.find_module('ajax_selects', app_path)
+        except ImportError:
+            continue
+
+        import_module("%s.ajax_selects" % app)
+
+def ajax_select_register(channel, model, search_field, extra_filter=None):
+    """
+    Register the original funcion and returns it
+    """
+    global autoconfigure_channels
+    if channel in autoconfigure_channels:
+        raise Exception(channel + ' defined multiple times')
+    autoconfigure_channels[channel] = make_channel(model, search_field, extra_filter)
 
 
