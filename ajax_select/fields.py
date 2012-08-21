@@ -227,7 +227,7 @@ class AutoCompleteSelectMultipleField(forms.fields.CharField):
     def __init__(self, channel, *args, **kwargs):
         self.channel = channel
 
-        as_default_help = u'Enter text to search.'
+        as_default_help = _(u'Enter text to search.')
         help_text = kwargs.get('help_text')
         extra_context = kwargs.pop('extra_context', {})
         extra_params_url = kwargs.pop('extra_params_url', {})
