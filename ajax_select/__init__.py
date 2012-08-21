@@ -240,7 +240,6 @@ from importlib import import_module
 
 def ajax_select_autodiscover():
     for app in settings.INSTALLED_APPS:
-        print app
         try:
             app_path = import_module(app).__path__
         except AttributeError:
